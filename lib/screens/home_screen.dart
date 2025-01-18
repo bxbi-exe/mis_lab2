@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../models/joke_model.dart';
 import '../services/api_service.dart';
+import 'favorite_jokes_screen.dart';
 import 'jokes_screen.dart';
 import 'random_joke_screen.dart';
 
@@ -10,14 +13,43 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<String>> jokeTypes;
+  List<Joke> favoriteJokes = [];
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
   @override
   void initState() {
     super.initState();
     jokeTypes = ApiService.fetchJokeTypes();
+    _initializeNotifications();
+    _scheduleDailyNotification();
   }
 
-  @override
+  void _initializeNotifications() async {
+    final androidInitializationSettings = AndroidInitializationSettings('app_icon');
+    final initializationSettings = InitializationSettings(android: androidInitializationSettings);
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
+
+  void _scheduleDailyNotification() async {
+    const androidDetails = AndroidNotificationDetails(
+      'daily_id',
+      'Daily Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    var platformDetails = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.periodicallyShow(
+      0,
+      'New Daily Joke!',
+      'Check the Joke Now!',
+      RepeatInterval.daily,
+      platformDetails,
+      androidScheduleMode: AndroidScheduleMode.exact,
+    );
+  }
+
+    @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -35,7 +67,19 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
-        ],
+          IconButton(
+            icon: Icon(Icons.favorite),
+            onPressed: () {
+              Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => FavoriteJokesScreen(
+                  favoriteJokes: favoriteJokes, // Pass the actual favoriteJokes list
+                ),
+              ),
+            );
+          },
+        )],
       ),
       body: FutureBuilder<List<String>>(
         future: jokeTypes,
@@ -66,7 +110,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => JokesByTypeScreen(type: type),
+                        builder: (context) => JokesByTypeScreen(type: type, onFavoriteToggle: (Joke joke) {
+                          setState(() {
+                            if (joke.isFavorite){
+                              favoriteJokes.add(joke);
+                            } else {
+                              favoriteJokes.removeWhere((faveJoke) => faveJoke.id == joke.id);
+                            }
+                          });
+                        },),
                       ),
                     );
                   },
